@@ -1,7 +1,7 @@
 FROM jeanblanchard/alpine-glibc
 MAINTAINER GuoZQ
 RUN mkdir -pv /data/jdk1.8.0_121
-COPY jdk1.8 /data/jdk1.8.0_121
+COPY jdk1.8.0_121 /data/jdk1.8.0_121
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8

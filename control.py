@@ -30,28 +30,43 @@ class Docker():
     def build(self):
         print("%s building" % self.severName)
         os.chdir(self.severName)  # 根据服务名切换工作目录
-        buildImages = "docker build -t %s ." % (self.severName)
-        buildStdout, buildStderr = self.execsh(buildImages)
+        buildImages = "docker build -t 10.0.0.133:5000/%s ." % (self.severName)
+        stdout, stderr = self.execsh(buildImages)
 
-        if buildStdout:
+        if stdout:
             print ("build images sucess:%s " % self.severName)
-            print (buildStdout)
+            print (stdout)
             return True
         else:
-            print (buildStdout)
+            print (stderr)
             print ("build images fail:%s " % self.severName)
             return False
             sys.exit()
 
 
     def pull(self):
-        print("%s pull" % self.severName )
+        print("%s pull" % self.severName)
 
+    def tag(self):
+        print("%s tag" % self.severName)
+        tagcmd = "docker tag {0} 10.0.1.133:50001/{0}".format(self.severName)
+        stdout, stderr = self.execsh(tagcmd)
+        print (stdout)
+        print (stderr)
+        if stdout:
+            print("tag images sucess:%s " % self.severName)
+            print(stdout)
+            return True
+        else:
+            print(stderr)
+            print("tag images fail:%s " % self.severName)
+            # return False
+            # sys.exit()
     def push(self):
         print("%s push" % self.severName)
 
     def checkService(self):
-        checkServiceCMD = "docker service inspect %s" % serverName
+        checkServiceCMD = "docker service inspect %s" % self.serverName
         checkStdout, checkStderr = self.execsh(checkServiceCMD)
 
         if (checkStdout, checkStderr):
@@ -80,8 +95,11 @@ class Docker():
 
 if __name__ == "__main__":
 
-    D = Docker("docker_jdk")
+    # D = Docker("tomcat")
+    D = Docker("springcloud")
+
     D.build()
+    # D.tag()
     # print (D.execsh("docker build -t tt ."))
     # D.pull()
     # D.push()

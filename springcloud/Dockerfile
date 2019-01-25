@@ -1,6 +1,6 @@
-FROM 10.0.1.133:5000/jdk
+FROM docker_jdk
 RUN mkdir -pv /app
-COPY activity-eureka-1.0.1.jar /app/activity-eureka-1.0.1.jar
+COPY git_spring_cloud/activity-eureka-1.0.1.jar /app/activity-eureka-1.0.1.jar
 EXPOSE 7020
 CMD java -jar /app/activity-eureka-1.0.1.jar
 

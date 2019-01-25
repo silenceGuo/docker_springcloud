@@ -1,5 +1,5 @@
 # Dockfile for tomcat7:base
-FROM docker_jdk
+FROM jdk
 MAINTAINER GuoZQ
 RUN mkdir -pv /data/tomcat8
 COPY tomcat-8 /data/tomcat8

@@ -1,4 +1,4 @@
-FROM docker_jdk
+FROM jdk
 RUN mkdir -pv /app
 COPY git_spring_cloud/activity-eureka-1.0.1.jar /app/activity-eureka-1.0.1.jar
 EXPOSE 7020

@@ -26,6 +26,8 @@ class Docker():
            print(e)
            sys.exit()
         return p.communicate()
+    def readconf(self):
+        pass
 
     def build(self):
         print("%s building" % self.severName)
@@ -42,7 +44,6 @@ class Docker():
             print ("build images fail:%s " % self.severName)
             return False
             sys.exit()
-
 
     def pull(self):
         print("%s pull" % self.severName)
@@ -76,6 +77,14 @@ class Docker():
 
     def createServer(self):
         print("%s createServer" % self.severName)
+        createService = "docker service create " \
+                        "--replicas 1 " \
+                        "--update-delay 10s " \
+                        "--update-failure-action continue " \
+                        "--network tomcat_net " \
+                        "--constraint node.hostname!=centos1 " \
+                        "--name %s  " \
+                        "-p %s:8080 %s" % (self.serverName, port, imagesName)
 
     def updataServer(self):
         print("%s updataServer" % self.severName)

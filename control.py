@@ -10,29 +10,73 @@
 import sys
 import os
 from subprocess import PIPE, Popen
+import configparser
 #reload(sys)
 # sys.setdefaultencoding('utf-8')
 # sys.set
 
-class Docker():
-    def __init__(self, serverName):
+class service():
+    def __init__(self, serverName, env, conf):
         self.severName = serverName
+        # self.env = env
+        self.conf = conf
+        self.serverDict = self.getconf()
+        print(self.serverDict)
 
-    def execsh(self,cmd):
+    def execsh(self, cmd):
         try:
             print ("exec ssh command: %s" % cmd)
             p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         except Exception as e:
            print(e)
-           sys.exit()
+           sys.exit(1)
         return p.communicate()
-    def readconf(self):
-        pass
+
+    def confCheck(self, cf, section, option):
+        if not cf.options(section):
+            print("no section: %s in conf file" % section)
+            sys.exit()
+        try:
+            options = cf.get(section, option)
+        except configparser.NoOptionError:
+            print("no option in conf %s " % option)
+            sys.exit()
+        if not options:
+            print ("options:%s is null in section:%s" % (option, section))
+            return False
+        else:
+            return True
+
+    def getconf(self):
+        if not os.path.exists(self.conf):
+            sys.exit(1)
+        cf = configparser.ConfigParser()
+        try:
+            cf.read(self.conf)
+        except configparser.ParsingError as e:
+            print (e)
+            print ("请检查服务配置文件： %s" % self.conf)
+            sys.exit(1)
+        serverNameDict = {}
+        optinsDict = {}
+        for serverName in cf.sections():
+            # print 'serverName:%s' % serverName
+            for optins in cf.options(serverName):
+                # 取服务名下的对应的配置和参数
+                if not self.confCheck(cf, serverName, optins):
+                    sys.exit(1)
+                value = cf.get(serverName, optins)
+                optinsDict[optins] = value
+            serverNameDict[serverName] = optinsDict
+            optinsDict = {}
+        return serverNameDict
 
     def build(self):
         print("%s building" % self.severName)
+
         os.chdir(self.severName)  # 根据服务名切换工作目录
         buildImages = "docker build -t 10.0.0.133:5000/%s ." % (self.severName)
+
         stdout, stderr = self.execsh(buildImages)
 
         if stdout:
@@ -43,7 +87,7 @@ class Docker():
             print (stderr)
             print ("build images fail:%s " % self.severName)
             return False
-            sys.exit()
+            sys.exit(1)
 
     def pull(self):
         print("%s pull" % self.severName)
@@ -89,8 +133,9 @@ class Docker():
     def updataServer(self):
         print("%s updataServer" % self.severName)
 
-    def startServer(self):
-        print("%s startServer" % self.severName)
+    def startServer(self,env):
+        print("%s startServer on %s" % (self.severName,env))
+
 
     def stopServer(self):
         print("%s stopServer" % self.severName)
@@ -101,13 +146,21 @@ class Docker():
     def rollBackServer(self):
         print ("%s rollback" % self.severName)
 
+class projet():
+    def __init__(self, serverName):
+        self.serverName = serverName
+
+
 
 if __name__ == "__main__":
 
     # D = Docker("tomcat")
-    D = Docker("springcloud")
+    D = Docker("springcloud", "es", "server.conf")
+    # s = D.readconf()
+    # s = D.startServer("ss")
 
-    D.build()
+    # print (s)
+    # D.build()
     # D.tag()
     # print (D.execsh("docker build -t tt ."))
     # D.pull()

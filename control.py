@@ -11,17 +11,32 @@ import sys
 import os
 from subprocess import PIPE, Popen
 import configparser
+# import OptionParser
+from optparse import OptionParser
+import shutil
 #reload(sys)
 # sys.setdefaultencoding('utf-8')
 # sys.set
 
 class service():
-    def __init__(self, serverName, env, conf):
-        self.severName = serverName
-        # self.env = env
-        self.conf = conf
-        self.serverDict = self.getconf()
-        print(self.serverDict)
+    def __init__(self, serverName, brancheName, env, version, serverDict):
+        self.serverName = serverName
+        self.env = env
+        self.version = version
+        self.brancheName = brancheName
+        self.serverDict = serverDict
+        # self.serverDict = self.getconf()
+        # print(self.serverDict)
+
+        # self.hostport = self.serverDict[self.serverName]["hostport"]
+        # print (self.hostport)
+        # self.dockerport = self.serverDict[self.serverName]["dockerport"]
+        #
+        # self.builddir = self.serverDict[self.serverName]["buiddir"]
+        # self.deploydir = self.serverDict[self.serverName]["deploydir"]
+        # self.jar = self.serverDict[self.serverName]["jar"]
+        # self.label = self.serverDict[self.serverName]["label"]
+        # self.network = self.serverDict[self.serverName]["network"]
 
     def execsh(self, cmd):
         try:
@@ -30,8 +45,226 @@ class service():
         except Exception as e:
            print(e)
            sys.exit(1)
-        return p.communicate()
+        stdout, stderr = p.communicate()
+        # 需要转换byte to str
+        stdout = stdout.decode()
+        stderr = stderr.decode()
+        return (stdout, stderr)
 
+    def gitupdate(self):
+        serverNameDict = self.serverDict[self.serverName]
+
+        buildDir = serverNameDict["builddir"]
+
+        os.chdir(buildDir)
+        if not self.checkMaster():
+            checkout_m_cmd = "git checkout %s" % self.brancheName
+            print("切换至%s分支" % self.brancheName)
+            self.ReturnExec(checkout_m_cmd)
+
+        print("获取 最新%s分支" % self.brancheName)
+        pull_m_cmd = "git pull"
+        stdout, stderr = self.execsh(pull_m_cmd)
+        # 判断是否有git 执行错误
+        return self.isNoErr(stdout, stderr)
+
+    # jar 文件mavn构建
+    def buildMaven(self):
+
+        serverNameDict = self.serverDict[self.serverName]
+        # deployDir = serverNameDict["deploydir"]
+        buildDir = serverNameDict["builddir"]
+
+        if not self.gitupdate():
+            print("git update is err")
+            sys.exit(1)
+
+        os.chdir(buildDir)
+        print("workdir : %s" % os.getcwd())
+
+        cmd = "%(mvn)s clean && %(mvn)s install -Dmaven.test.skip=true -P dev" % {"mvn": mvn}
+        print("构建服务：%s" % self.serverName)
+        # sys.exit()
+        stdout, stderr = self.execsh(cmd)
+
+        if "BUILD FAILURE" in stdout:
+            print("stdout:%s" % stdout)
+            return False
+        elif "BUILD FAILURE" in stderr:
+            print("stderr:%s" % stderr)
+            return False
+        else:
+            if stdout:
+                print(stdout)
+            if stderr:
+                print(stderr)
+            return True
+
+    def ReturnExec(self,cmd):
+        stdout, stderr = self.execsh(cmd)
+        if stdout:
+            print (80 * "#")
+            print ("out:%s " % stdout)
+        if stderr:
+            print(80 * "#")
+            print("err:%s" % stderr)
+
+    def checkMaster(self):
+        # 获取项目分支是否为master
+        cmd = "git branch"
+        stdout, stderr = self.execsh(cmd)
+        print("out:", stdout)
+
+        branch_list = [i.strip() for i in stdout.split("\n") if i]
+        branchName_str = "* %s" % self.brancheName
+        if branchName_str in branch_list:
+            print("%s 分支" % self.brancheName)
+            return True
+        print("err", stderr)
+        return False
+
+    def isNoErr(self,stdout, stderr):
+        # 有错误返回false
+        errlist = ["error", "fatal", "error"]
+
+        if not "error" or "fatal" in stdout:
+            print("stdout:%s" % stdout)
+            return False
+        elif not "error" or "fatal" in stderr:
+            print("stderr:%s" % stderr)
+            return False
+        else:
+            print("stdout:%s" % stdout)
+            print("stderr:%s" % stderr)
+            return True
+
+    def copyFile(self):
+        serverNameDict = self.serverDict[self.serverName]
+        deploydir = serverNameDict["deploydir"]
+        jar = serverNameDict["jar"]
+        jarName = jar.split("/")[-1]
+        if not os.path.exists(jar):
+            print ("%s is not exists" % jar)
+            sys.exit(1)
+        destjar = os.path.join(deploydir, jarName)
+        try:
+            print("copy %s to %s " % (jar, destjar))
+            shutil.copyfile(jar,os.path.join(deploydir,jarName))
+        except Exception as e:
+            print (e)
+            print ("copy %s to %s fail" %(jar,destjar))
+            sys.exit(1)
+        if not os.path.exists(destjar):
+            print("copy %s to %s fail" % (jar, destjar))
+        print("copy %s to %s sucess " % (jar, destjar))
+
+    def buildImage(self):
+        serverNameDict = self.serverDict[self.serverName]
+        deploydir = serverNameDict["deploydir"]
+        jar = serverNameDict["jar"]
+        jarName = jar.split("/")[-1]
+
+
+        if not os.path.exists(jar):
+            print("%s is not exists" % jar)
+            sys.exit(1)
+        destJar = os.path.join(deploydir, jarName)
+
+        print("%s building" % self.serverName)
+        if not self.buildMaven():
+            print ("build server:%s fala" % self.serverName)
+            sys.exit(1)
+        # 拷贝 构建好的jar 包 到部署目录用于 构建镜像
+        self.copyFile()
+
+        # 根据服务名切换工作目录
+        os.chdir(deploydir)
+        buildImage = "docker build -t {0}/{1}-{2}:{3} " \
+                      "--build-arg envName={3} " \
+                      "--build-arg deployDir={4} " \
+                      "--build-arg jarName={5} .".format(repositoryUrl,self.serverName,self.env,self.version, self.serverName,jarName)
+
+        # buildImages = "docker build -t {0}/{1} .".format(repositoryUrl,self.serverName)
+
+        stdout, stderr = self.execsh(buildImage)
+
+        if stdout:
+            print ("build images sucess:%s " % self.serverName)
+            print (stdout)
+            return True
+        else:
+            print (stderr)
+            print ("build images fail:%s " % self.serverName)
+            return False
+            sys.exit(1)
+
+    def pull(self):
+        print("%s pull" % self.serverName)
+
+    def tag(self):
+        print("%s tag" % self.serverName)
+        tagcmd = "docker tag {0} {1}/{0}".format(self.serverName, repositoryUrl)
+        print (tagcmd)
+        stdout, stderr = self.execsh(tagcmd)
+        print (stdout)
+        print (stderr)
+        if stdout:
+            print("tag images sucess:%s " % self.serverName)
+            print(stdout)
+            return True
+        else:
+            print(stderr)
+            print("tag images fail:%s " % self.serverName)
+            # return False
+            # sys.exit()
+    def push(self):
+        print("%s push" % self.serverName)
+
+    def checkService(self):
+        checkServiceCMD = "docker service inspect %s" % self.serverName
+        checkStdout, checkStderr = self.execsh(checkServiceCMD)
+
+        if (checkStdout, checkStderr):
+            return True
+        else:
+            return False
+
+    def createServer(self):
+        print("%s createServer" % self.serverName)
+        createService = "docker service create " \
+                        "--replicas 1 " \
+                        "--update-delay 10s " \
+                        "--update-failure-action continue " \
+                        "--network tomcat_net " \
+                        "--constraint node.hostname!=centos1 " \
+                        "--name %s  " \
+                        "-p %s:8080 %s" % (self.serverName, port, imagesName)
+
+    def updataServer(self):
+        print("%s updataServer" % self.serverName)
+
+    def startServer(self,env):
+        print("%s startServer on %s" % (self.serverName,env))
+
+
+    def stopServer(self):
+        print("%s stopServer" % self.serverName)
+
+    def restartServer(self):
+        print ("%s restart" % self.serverName)
+
+    def rollBackServer(self):
+        print ("%s rollback" % self.serverName)
+
+class projet():
+    def __init__(self, serverName):
+        self.serverName = serverName
+
+
+
+class Conf():
+    def __init__(self, conf):
+        self.conf = conf
     def confCheck(self, cf, section, option):
         if not cf.options(section):
             print("no section: %s in conf file" % section)
@@ -60,7 +293,6 @@ class service():
         serverNameDict = {}
         optinsDict = {}
         for serverName in cf.sections():
-            # print 'serverName:%s' % serverName
             for optins in cf.options(serverName):
                 # 取服务名下的对应的配置和参数
                 if not self.confCheck(cf, serverName, optins):
@@ -71,91 +303,140 @@ class service():
             optinsDict = {}
         return serverNameDict
 
-    def build(self):
-        print("%s building" % self.severName)
+def getOptions():
+    parser = OptionParser()
+    parser.add_option("-n", "--serverName", action="store",
+                      dest="serverName",
+                      default=False,
+                      help="serverName to do")
+    parser.add_option("-a", "--action", action="store",
+                      dest="action",
+                      default="status",
+                      help="action -a [checkout,pull,push,master,install]")
+    #
+    parser.add_option("-v", "--versionId", action="store",
+                      dest="versionId",
+                      default="latest",
+                      help="-v versionId")
 
-        os.chdir(self.severName)  # 根据服务名切换工作目录
-        buildImages = "docker build -t 10.0.0.133:5000/%s ." % (self.severName)
+    parser.add_option("-b", "--branchName", action="store",
+                      dest="branchName",
+                      default="master",
+                      help="-b branchName")
 
-        stdout, stderr = self.execsh(buildImages)
+    # jar 服务启动区分环境 读取的配置不一样
+    parser.add_option("-e", "--envName", action="store",
+                      dest="envName",
+                      default="test",
+                      help="-e envName")
 
-        if stdout:
-            print ("build images sucess:%s " % self.severName)
-            print (stdout)
-            return True
+    options, args = parser.parse_args()
+    return options, args
+
+def _init():
+    if not os.path.exists(serverConf):
+        print ("serverconf:%s is not exists" % serverConf)
+        sys.exit(1)
+    if not os.path.exists(startConf):
+        print ("startconf：%s is not exists" % startConf)
+        sys.exit(1)
+
+    serverDict = Conf(serverConf).getconf()
+    options, args = getOptions()
+    action = options.action
+    version = options.versionId
+    serverName = options.serverName
+    branchName = options.branchName
+    envName = options.envName
+    if not action:
+        print ("参数执行操作 -a action [install,init,back,rollback，getback，start,stop,restart]")
+        sys.exit(1)
+    elif not serverName:
+        print ("参数服务名 -n servername ")
+        printServerName(serverDict)
+        sys.exit(1)
+    elif not envName:
+        print ("参数执行操作 -e envName [dev,test,pro]")
+        sys.exit(1)
+    else:
+
+        if serverName == "all":
+            if readfile(startConf):
+                serName, point = readfile(startConf)
+            else:
+                point = 0
+            # 进行升序排列
+            serverlist = sorted(serverDict.keys())
+
+            # 从上次执行失败的位置开始执行
+
+            for serName in serverlist[int(point):]:
+                ser_index = serverlist.index(serName)
+                info = "%s:%s" % (ser_index, serName)
+                writefile(startConf, info)
+                main(serName, branchName, action, envName, version,serverDict)
+            cleanfile(startConf)
+
         else:
-            print (stderr)
-            print ("build images fail:%s " % self.severName)
+            if serverName not in serverDict:
+                print ("没有服务名：%s" % serverName)
+                printServerName(serverDict)
+                sys.exit(1)
+            main(serverName, branchName, action, envName, version,serverDict)
+
+def printServerName(Dict):
+    serverlist = sorted(Dict.keys())
+    for serverName in serverlist:
+        print ("可执行服务名：%s" % serverName)
+    return serverlist
+
+# 读取启动服务顺序文件
+def readfile(file):
+    if not os.path.exists(file):
+        return False
+    with open(file) as fd:
+        for i in fd.readlines():
+            if i:
+                return [i.strip().split(":")[1], i.strip().split(":")[0]]
             return False
-            sys.exit(1)
 
-    def pull(self):
-        print("%s pull" % self.severName)
+# 写启动服务顺序文件
+def writefile(file,info):
+    if not os.path.exists(file):
+        print (file)
+        with open(file, 'w+') as fd:
+            fd.write(info)
+    else:
+        with open(file, 'w+')as fd:
+            fd.write(info)
 
-    def tag(self):
-        print("%s tag" % self.severName)
-        tagcmd = "docker tag {0} 10.0.1.133:50001/{0}".format(self.severName)
-        stdout, stderr = self.execsh(tagcmd)
-        print (stdout)
-        print (stderr)
-        if stdout:
-            print("tag images sucess:%s " % self.severName)
-            print(stdout)
-            return True
-        else:
-            print(stderr)
-            print("tag images fail:%s " % self.severName)
-            # return False
-            # sys.exit()
-    def push(self):
-        print("%s push" % self.severName)
+# 清理启动服务顺序文件
+def cleanfile(file):
+    with open(file, 'w+') as fd:
+        fd.write("")
 
-    def checkService(self):
-        checkServiceCMD = "docker service inspect %s" % self.serverName
-        checkStdout, checkStderr = self.execsh(checkServiceCMD)
-
-        if (checkStdout, checkStderr):
-            return True
-        else:
-            return False
-
-    def createServer(self):
-        print("%s createServer" % self.severName)
-        createService = "docker service create " \
-                        "--replicas 1 " \
-                        "--update-delay 10s " \
-                        "--update-failure-action continue " \
-                        "--network tomcat_net " \
-                        "--constraint node.hostname!=centos1 " \
-                        "--name %s  " \
-                        "-p %s:8080 %s" % (self.serverName, port, imagesName)
-
-    def updataServer(self):
-        print("%s updataServer" % self.severName)
-
-    def startServer(self,env):
-        print("%s startServer on %s" % (self.severName,env))
+def main(serverName, branchName, action, envName,version,serverDict):
 
 
-    def stopServer(self):
-        print("%s stopServer" % self.severName)
-
-    def restartServer(self):
-        print ("%s restart" % self.severName)
-
-    def rollBackServer(self):
-        print ("%s rollback" % self.severName)
-
-class projet():
-    def __init__(self, serverName):
-        self.serverName = serverName
-
+    servicer = service(serverName, branchName, envName, version, serverDict)
+    # servicer.buildMaven()
+    servicer.buildImage()
 
 
 if __name__ == "__main__":
+    mvn = "/app/apache-maven-3.5.0/bin/mvn"
+    serverConf = "server.conf"
+    startConf = "start.conf"
+    repositoryUrl = "10.0.1.133:5000"
 
-    # D = Docker("tomcat")
-    D = Docker("springcloud", "es", "server.conf")
+    _init()
+
+
+    # conf = Conf("server.conf").getconf()
+    # print (conf)
+    pass
+    # D = service("activity-eureka-1", "es", "server.conf")
+    # print('{name}网址： {site}'.format(name='菜鸟教程', site='www.runoob.com'))
     # s = D.readconf()
     # s = D.startServer("ss")
 

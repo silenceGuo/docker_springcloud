@@ -1,7 +1,12 @@
-FROM jdk
+FROM 10.0.1.133:5000/jdk
 RUN mkdir -pv /app
-COPY git_spring_cloud/activity-eureka-1.0.1.jar /app/activity-eureka-1.0.1.jar
+ARG deployDir
+ARG jarName
+ARG envName
+
+COPY ${deployDir}/${jarName}  /app/${jarName}
 EXPOSE 7020
-CMD java -jar /app/activity-eureka-1.0.1.jar
+CMD java -jar /app/${jarName} --spring.profiles.active=${envName}
+
 
 #ENTRYPOINT ["java","-jar","/app/activity-eureka-1.0.1.jar"]

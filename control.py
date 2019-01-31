@@ -55,7 +55,11 @@ class service():
         serverNameDict = self.serverDict[self.serverName]
 
         buildDir = serverNameDict["builddir"]
-
+        os.chdir(buildDir)
+        pull_m_cmd = "git pull"
+        stdout, stderr = self.execsh(pull_m_cmd)
+        print (stdout)
+        print (stderr)
         os.chdir(buildDir)
         if not self.checkMaster():
             checkout_m_cmd = "git checkout %s" % self.brancheName
@@ -126,7 +130,6 @@ class service():
     def isNoErr(self,stdout, stderr):
         # 有错误返回false
         errlist = ["error", "fatal", "error"]
-
         if not "error" or "fatal" in stdout:
             print("stdout:%s" % stdout)
             return False
@@ -164,27 +167,19 @@ class service():
         jar = serverNameDict["jar"]
         jarName = jar.split("/")[-1]
 
-
-        if not os.path.exists(jar):
-            print("%s is not exists" % jar)
-            sys.exit(1)
-        destJar = os.path.join(deploydir, jarName)
-
         print("%s building" % self.serverName)
         if not self.buildMaven():
-            print ("build server:%s fala" % self.serverName)
+            print ("build server:%s False" % self.serverName)
             sys.exit(1)
+
         # 拷贝 构建好的jar 包 到部署目录用于 构建镜像
         self.copyFile()
 
-        # 根据服务名切换工作目录
+        # 切换工作目录
         os.chdir(deploydir)
         buildImage = "docker build -t {0}/{1}-{2}:{3} " \
-                      "--build-arg envName={3} " \
-                      "--build-arg deployDir={4} " \
+                      "--build-arg envName={2} " \
                       "--build-arg jarName={5} .".format(repositoryUrl,self.serverName,self.env,self.version, self.serverName,jarName)
-
-        # buildImages = "docker build -t {0}/{1} .".format(repositoryUrl,self.serverName)
 
         stdout, stderr = self.execsh(buildImage)
 
@@ -198,8 +193,21 @@ class service():
             return False
             sys.exit(1)
 
-    def pull(self):
-        print("%s pull" % self.serverName)
+    def pullimage(self):
+        imagename = "{0}/{1}-{2}:{3}".format(repositoryUrl, self.serverName, self.env, self.version)
+        print("%s pull" % imagename)
+
+        pushImage = "docker pull {0}".format(imagename)
+        stdout, stderr = self.execsh(pushImage)
+        if stdout:
+            print ("pull images sucess:%s " % imagename)
+            print (stdout)
+            return True
+        else:
+            print (stderr)
+            print ("pull images fail:%s " % imagename)
+            return False
+            sys.exit(1)
 
     def tag(self):
         print("%s tag" % self.serverName)
@@ -217,44 +225,168 @@ class service():
             print("tag images fail:%s " % self.serverName)
             # return False
             # sys.exit()
-    def push(self):
-        print("%s push" % self.serverName)
+
+    def pushimage(self):
+        imagename = "{0}/{1}-{2}:{3}".format(repositoryUrl, self.serverName, self.env, self.version)
+        print("%s pull" % imagename)
+
+        pushImage = "docker push {0}".format(imagename)
+        stdout, stderr = self.execsh(pushImage)
+        if stdout:
+            print("push images sucess:%s " % imagename)
+            print(stdout)
+            return True
+        else:
+            print(stderr)
+            print("push images fail:%s " % imagename)
+            return False
+            sys.exit(1)
+
 
     def checkService(self):
         checkServiceCMD = "docker service inspect %s" % self.serverName
         checkStdout, checkStderr = self.execsh(checkServiceCMD)
-
-        if (checkStdout, checkStderr):
+        print (checkStdout)
+        print (checkStderr)
+        if checkStdout:
             return True
         else:
             return False
 
+    def printOutErr(self,stdout, stderr):
+        if stdout and len(stdout) > 3:
+            print("stdout >>>%s" % stdout)
+            return True
+        if stderr:
+            print("stderr >>>%s " % stderr)
+            return False
+    # 检查 覆盖网络，创建覆盖网络
+    def createNetwork(self,networkName):
+        creatNetworkCmd = "docker network create -d overlay %s" % networkName
+        checkNetworkCmd = "docker network inspect %s " % networkName
+        checkNetworkStdout, checkNetworkStderr = self.execsh(checkNetworkCmd)
+
+        if self.printOutErr(checkNetworkStdout, checkNetworkStderr):
+            return True
+        else:
+            checkStdout, checkStderr = self.execsh(creatNetworkCmd)
+            print ("create network;%s" % networkName)
+            if self.printOutErr(checkStdout, checkStderr):
+                return True
+            else:
+                return False
+
     def createServer(self):
+        if not self.checkService():
+            print ("service:%s is exists" % self.serverName)
+            sys.exit(1)
+        imagename = "{0}/{1}-{2}:{3}".format(repositoryUrl, self.serverName, self.env, self.version)
+        serverNameDict = self.serverDict[self.serverName]
+        hostport = serverNameDict["hostport"]
+        dockerport = serverNameDict["dockerport"]
+        replicas = serverNameDict["replicas"]
+        network = serverNameDict["network"]
+        if not self.createNetwork(network):
+            print ("create network %s" % network)
+
+        try:
+            xms = serverNameDict["xms"]
+            xmx = serverNameDict["xmx"]
+        except:
+            print("配置文件中为配置内存参数参数默认512m ")
+            xms = "512m"
+            xmx = "512m"
+
+        if self.env == "test":
+            nodelabel = serverNameDict["testlabel"]
+        if self.env == "dev":
+            nodelabel = serverNameDict["devlabel"]
+        if self.env == "pro":
+            nodelabel = serverNameDict["prolabel"]
         print("%s createServer" % self.serverName)
         createService = "docker service create " \
-                        "--replicas 1 " \
+                        "--replicas {replicas} " \
                         "--update-delay 10s " \
                         "--update-failure-action continue " \
-                        "--network tomcat_net " \
-                        "--constraint node.hostname!=centos1 " \
-                        "--name %s  " \
-                        "-p %s:8080 %s" % (self.serverName, port, imagesName)
+                        "--network {network} " \
+                        "--constraint node.labels.type=={label} " \
+                        "--name {serverName} " \
+                        "--limit-memory {xmx} " \
+                        "-p {hostport}:{dockerport} {imagename}".format(serverName=self.serverName,
+                                                        network=network,
+                                                        imagename=imagename,
+                                                        dockerport=dockerport,
+                                                        hostport=hostport,
+                                                        replicas=replicas,
+                                                        label=nodelabel,
+                                                        xmx=xmx
+                                                        )
+
+        stdout, stderr = self.execsh(createService)
+        print (stdout)
+        print (stderr)
 
     def updataServer(self):
+
         print("%s updataServer" % self.serverName)
+        imagename = "{0}/{1}-{2}:{3}".format(repositoryUrl, self.serverName, self.env, self.version)
+        serverNameDict = self.serverDict[self.serverName]
+        hostport = serverNameDict["hostport"]
+        dockerport = serverNameDict["dockerport"]
+        replicas = serverNameDict["replicas"]
+        network = serverNameDict["network"]
+        if not self.createNetwork(network):
+            print("create network %s" % network)
+        try:
+            xms = serverNameDict["xms"]
+            xmx = serverNameDict["xmx"]
+        except:
+            print("配置文件中为配置内存参数参数默认512m ")
+            xms = "512m"
+            xmx = "512m"
+        updateService = "docker service update " \
+                        "--replicas {replicas} " \
+                        "--limit-memory {xmx} " \
+                        "--image {imagename} {serverName}".format(serverName=self.serverName,
+                                               imagename=imagename,
+                                               replicas=replicas,
+                                               xmx=xmx
+                                            )
+        print("update service:%s" % self.serverName)
+        updateStdout, updateStderr = self.execsh(updateService)
+        if self.printOutErr(updateStdout, updateStderr):
+            print("update service sucess:%s" % self.serverName)
+            return True
+        else:
+            print("update service fail:%s" % self.serverName)
+            return False
 
     def startServer(self,env):
-        print("%s startServer on %s" % (self.serverName,env))
+        print("%s startServer on %s" % (self.serverName, env))
 
 
-    def stopServer(self):
-        print("%s stopServer" % self.serverName)
+    def reomveServer(self):
+        print("%s remove Server" % self.serverName)
+        cmd = "docker service rm %s" % self.serverName
+        removeStdout, removeStderr = self.execsh(cmd)
+        if self.printOutErr(removeStdout, removeStderr):
+            print("remove service sucess:%s" % self.serverName)
+            return True
+        else:
+            print("remove service fail:%s" % self.serverName)
+            return False
 
-    def restartServer(self):
-        print ("%s restart" % self.serverName)
 
     def rollBackServer(self):
         print ("%s rollback" % self.serverName)
+        rollbackService = "docker service update --rollback %s" % self.serverName
+        print("rollback service:%s" % self.serverName)
+        rollbackupdateStdout, rollbackStderr = self.execsh(rollbackService)
+        if self.printOutErr(rollbackupdateStdout, rollbackStderr):
+            print("rollback service sucess :%s " % self.serverName)
+        else:
+            print("rollback service fail :%s " % self.serverName)
+            sys.exit()
 
 class projet():
     def __init__(self, serverName):
@@ -420,8 +552,12 @@ def main(serverName, branchName, action, envName,version,serverDict):
 
     servicer = service(serverName, branchName, envName, version, serverDict)
     # servicer.buildMaven()
-    servicer.buildImage()
-
+    # servicer.buildImage()
+    # servicer.pushimage()
+    # print (servicer.checkService())
+    servicer.reomveServer()
+    servicer.createServer()
+    # servicer.updataServer()
 
 if __name__ == "__main__":
     mvn = "/app/apache-maven-3.5.0/bin/mvn"

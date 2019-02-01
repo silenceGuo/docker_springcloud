@@ -165,21 +165,27 @@ class service():
         serverNameDict = self.serverDict[self.serverName]
         deploydir = serverNameDict["deploydir"]
         jar = serverNameDict["jar"]
+        dockerport = serverNameDict["dockerport"]
         jarName = jar.split("/")[-1]
 
-        print("%s building" % self.serverName)
-        if not self.buildMaven():
-            print ("build server:%s False" % self.serverName)
-            sys.exit(1)
+        # print("%s building" % self.serverName)
+        # if not self.buildMaven():
+        #     print ("build server:%s False" % self.serverName)
+        #     sys.exit(1)
 
         # 拷贝 构建好的jar 包 到部署目录用于 构建镜像
         self.copyFile()
-
         # 切换工作目录
         os.chdir(deploydir)
-        buildImage = "docker build -t {0}/{1}-{2}:{3} " \
-                      "--build-arg envName={2} " \
-                      "--build-arg jarName={5} .".format(repositoryUrl,self.serverName,self.env,self.version, self.serverName,jarName)
+        buildImage = "docker build -t {repositoryUrl}/{serverName}-{env}:{version} " \
+                      "--build-arg envName={env} " \
+                      "--build-arg dockerport={dockerport} " \
+                      "--build-arg jarName={jarName} .".format(repositoryUrl=repositoryUrl,
+                                                         serverName=self.serverName,
+                                                         env=self.env,
+                                                         version=self.version,
+                                                         dockerport=dockerport,
+                                                         jarName=jarName)
 
         stdout, stderr = self.execsh(buildImage)
 
@@ -376,7 +382,6 @@ class service():
             print("remove service fail:%s" % self.serverName)
             return False
 
-
     def rollBackServer(self):
         print ("%s rollback" % self.serverName)
         rollbackService = "docker service update --rollback %s" % self.serverName
@@ -552,7 +557,7 @@ def main(serverName, branchName, action, envName,version,serverDict):
 
     servicer = service(serverName, branchName, envName, version, serverDict)
     # servicer.buildMaven()
-    # servicer.buildImage()
+    servicer.buildImage()
     # servicer.pushimage()
     # print (servicer.checkService())
     servicer.reomveServer()

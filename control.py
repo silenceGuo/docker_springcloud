@@ -299,7 +299,7 @@ class service():
             xms = serverNameDict["xms"]
             xmx = serverNameDict["xmx"]
         except:
-            print("配置文件中为配置内存参数参数默认512m ")
+            print("配置文件中为配置容器内存限制参数参数默认512m ")
             xms = "512m"
             xmx = "512m"
 
@@ -357,7 +357,7 @@ class service():
                                                imagename=imagename,
                                                replicas=replicas,
                                                xmx=xmx
-                                            )
+                                                )
         print("update service:%s" % self.serverName)
         updateStdout, updateStderr = self.execsh(updateService)
         if self.printOutErr(updateStdout, updateStderr):
@@ -383,7 +383,7 @@ class service():
             return False
 
     def rollBackServer(self):
-        print ("%s rollback" % self.serverName)
+        print ("%s rollback 上个版本" % self.serverName)
         rollbackService = "docker service update --rollback %s" % self.serverName
         print("rollback service:%s" % self.serverName)
         rollbackupdateStdout, rollbackStderr = self.execsh(rollbackService)
@@ -557,12 +557,13 @@ def main(serverName, branchName, action, envName,version,serverDict):
 
     servicer = service(serverName, branchName, envName, version, serverDict)
     # servicer.buildMaven()
-    servicer.buildImage()
+    # servicer.buildImage()
     # servicer.pushimage()
     # print (servicer.checkService())
-    servicer.reomveServer()
-    servicer.createServer()
-    # servicer.updataServer()
+    # servicer.reomveServer()
+    # servicer.createServer()
+    servicer.rollBackServer()
+    servicer.updataServer()
 
 if __name__ == "__main__":
     mvn = "/app/apache-maven-3.5.0/bin/mvn"

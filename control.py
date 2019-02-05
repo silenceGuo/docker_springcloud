@@ -397,8 +397,6 @@ class projet():
     def __init__(self, serverName):
         self.serverName = serverName
 
-
-
 class Conf():
     def __init__(self, conf):
         self.conf = conf

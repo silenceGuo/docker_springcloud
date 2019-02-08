@@ -15,8 +15,8 @@ import configparser
 from optparse import OptionParser
 import shutil
 #reload(sys)
-# sys.setdefaultencoding('utf-8')
-# sys.set
+# # sys.setdefaultencoding('utf-8')
+# # sys.set
 
 class service():
     def __init__(self, serverName, brancheName, env, version, serverDict):
@@ -41,7 +41,7 @@ class service():
     def execsh(self, cmd):
         try:
             print ("exec ssh command: %s" % cmd)
-            p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+            # p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         except Exception as e:
            print(e)
            sys.exit(1)
@@ -294,7 +294,6 @@ class service():
         network = serverNameDict["network"]
         if not self.createNetwork(network):
             print ("create network %s" % network)
-
         try:
             xms = serverNameDict["xms"]
             xmx = serverNameDict["xmx"]
@@ -315,6 +314,9 @@ class service():
                         "--update-delay 10s " \
                         "--update-failure-action continue " \
                         "--network {network} " \
+                        "-v /root/logger/{serverName} " \
+                        "--label aliyun.logs.docker-{serverName}=stdout " \
+                        "--label aliyun.logs.{serverName}=/root/logger/{serverName}/*.log " \
                         "--constraint node.labels.type=={label} " \
                         "--name {serverName} " \
                         "--limit-memory {xmx} " \
@@ -494,7 +496,6 @@ def _init():
         print ("参数执行操作 -e envName [dev,test,pro]")
         sys.exit(1)
     else:
-
         if serverName == "all":
             if readfile(startConf):
                 serName, point = readfile(startConf)
@@ -502,16 +503,13 @@ def _init():
                 point = 0
             # 进行升序排列
             serverlist = sorted(serverDict.keys())
-
             # 从上次执行失败的位置开始执行
-
             for serName in serverlist[int(point):]:
                 ser_index = serverlist.index(serName)
                 info = "%s:%s" % (ser_index, serName)
                 writefile(startConf, info)
                 main(serName, branchName, action, envName, version,serverDict)
             cleanfile(startConf)
-
         else:
             if serverName not in serverDict:
                 print ("没有服务名：%s" % serverName)
@@ -550,9 +548,38 @@ def cleanfile(file):
     with open(file, 'w+') as fd:
         fd.write("")
 
+def logpilot():
+    """docker run --rm -it \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v /:/host \
+    --privileged \
+    -e FLUENTD_OUTPUT=redis \
+    -e REDIS_HOST=${REDIS_HOST} \
+    -e EREDIS_PORT=${EREDIS_PORT} \
+    registry.cn-hangzhou.aliyuncs.com/acs-sample/log-pilot:0.9.5-filebeat"""
+    cmd = "docker service create " \
+                        " --mode global " \
+                        "-v /:/host " \
+                        "--privileged " \
+                        "--network {network} " \
+                        "-e FLUENTD_OUTPUT=redis " \
+                        "-e REDIS_HOST={REDIS_HOST} " \
+                        "-e EREDIS_PORT={EREDIS_PORT} " \
+                        "--name log-pilot " \
+                        "--limit-memory {xmx} " \
+                        "registry.cn-hangzhou.aliyuncs.com/acs-sample/log-pilot:0.9.5-filebeat".format(
+                        network="network",
+                        REDIS_HOST="redisHost",
+                        EREDIS_PORT="redisPort",
+                        xmx="xmx")
+    Stdout, Stderr = service.execsh("service",cmd)
+    if service.printOutErr(Stdout, Stderr):
+        print("create service sucess:%s" % self.serverName)
+        return True
+    else:
+        print("create service fail:%s" % self.serverName)
+        return False
 def main(serverName, branchName, action, envName,version,serverDict):
-
-
     servicer = service(serverName, branchName, envName, version, serverDict)
     # servicer.buildMaven()
     # servicer.buildImage()
@@ -568,9 +595,9 @@ if __name__ == "__main__":
     serverConf = "server.conf"
     startConf = "start.conf"
     repositoryUrl = "10.0.1.133:5000"
-
-    _init()
-
+    service.execsh('s','sss')
+    # _init()
+    logpilot()
 
     # conf = Conf("server.conf").getconf()
     # print (conf)

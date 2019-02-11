@@ -41,7 +41,7 @@ class service():
     def execsh(self, cmd):
         try:
             print ("exec ssh command: %s" % cmd)
-            # p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+            p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         except Exception as e:
            print(e)
            sys.exit(1)

@@ -266,6 +266,7 @@ class service():
         if stderr:
             print("stderr >>>%s " % stderr)
             return False
+
     # 检查 覆盖网络，创建覆盖网络
     def createNetwork(self,networkName):
         creatNetworkCmd = "docker network create -d overlay %s" % networkName
@@ -311,16 +312,16 @@ class service():
         print("%s createServer" % self.serverName)
         createService = "docker service create " \
                         "--replicas {replicas} " \
+                        "--mount type=volume,dst=/root/logger/{serverName} " \
                         "--update-delay 10s " \
                         "--update-failure-action continue " \
                         "--network {network} " \
-                        "-v /root/logger/{serverName} " \
-                        "--label aliyun.logs.docker-{serverName}=stdout " \
-                        "--label aliyun.logs.{serverName}=/root/logger/{serverName}/*.log " \
-                        "--constraint node.labels.type=={label} " \
+                        "--constraint node.role=={label} " \
+                        "--container-label aliyun.logs.{serverName}=/root/logger/{serverName}/*.log " \
                         "--name {serverName} " \
+                        "--hostname `hostname` " \
                         "--limit-memory {xmx} " \
-                        "-p {hostport}:{dockerport} {imagename}".format(serverName=self.serverName,
+                        "-p {hostport}:{dockerport} {imagename} ".format(serverName=self.serverName,
                                                         network=network,
                                                         imagename=imagename,
                                                         dockerport=dockerport,
@@ -329,7 +330,7 @@ class service():
                                                         label=nodelabel,
                                                         xmx=xmx
                                                         )
-
+        "--constraint node.labels.type=={label} "
         stdout, stderr = self.execsh(createService)
         print (stdout)
         print (stderr)
@@ -548,56 +549,51 @@ def cleanfile(file):
     with open(file, 'w+') as fd:
         fd.write("")
 
-def logpilot():
-    """docker run --rm -it \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v /:/host \
-    --privileged \
-    -e FLUENTD_OUTPUT=redis \
-    -e REDIS_HOST=${REDIS_HOST} \
-    -e EREDIS_PORT=${EREDIS_PORT} \
-    registry.cn-hangzhou.aliyuncs.com/acs-sample/log-pilot:0.9.5-filebeat"""
-    cmd = "docker service create " \
-                        " --mode global " \
-                        "-v /:/host " \
-                        "--privileged " \
-                        "--network {network} " \
-                        "-e FLUENTD_OUTPUT=redis " \
-                        "-e REDIS_HOST={REDIS_HOST} " \
-                        "-e EREDIS_PORT={EREDIS_PORT} " \
-                        "--name log-pilot " \
-                        "--limit-memory {xmx} " \
-                        "registry.cn-hangzhou.aliyuncs.com/acs-sample/log-pilot:0.9.5-filebeat".format(
-                        network="network",
-                        REDIS_HOST="redisHost",
-                        EREDIS_PORT="redisPort",
-                        xmx="xmx")
-    Stdout, Stderr = service.execsh("service",cmd)
-    if service.printOutErr(Stdout, Stderr):
-        print("create service sucess:%s" % self.serverName)
+def execsh(cmd):
+        try:
+            print ("exec ssh command: %s" % cmd)
+            p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        except Exception as e:
+           print(e)
+           sys.exit(1)
+        stdout, stderr = p.communicate()
+        # 需要转换byte to str
+        stdout = stdout.decode()
+        stderr = stderr.decode()
+        return (stdout, stderr)
+
+def printOutErr(stdout, stderr):
+    if stdout and len(stdout) > 3:
+        print("stdout >>>%s" % stdout)
         return True
-    else:
-        print("create service fail:%s" % self.serverName)
+    if stderr:
+        print("stderr >>>%s " % stderr)
         return False
+
+
 def main(serverName, branchName, action, envName,version,serverDict):
     servicer = service(serverName, branchName, envName, version, serverDict)
+    servicer.createNetwork()
     # servicer.buildMaven()
-    # servicer.buildImage()
-    # servicer.pushimage()
+    servicer.buildImage()
+    servicer.pushimage()
     # print (servicer.checkService())
-    # servicer.reomveServer()
-    # servicer.createServer()
-    servicer.rollBackServer()
-    servicer.updataServer()
+    # servicer.logpilot()
+    servicer.reomveServer()
+    servicer.createServer()
+    # servicer.rollBackServer()
+    # servicer.updataServer()
 
 if __name__ == "__main__":
     mvn = "/app/apache-maven-3.5.0/bin/mvn"
     serverConf = "server.conf"
     startConf = "start.conf"
     repositoryUrl = "10.0.1.133:5000"
-    service.execsh('s','sss')
+    # service.execsh('s','sss')
+    # logpilot()
+    main()
     # _init()
-    logpilot()
+    # logpilot()
 
     # conf = Conf("server.conf").getconf()
     # print (conf)

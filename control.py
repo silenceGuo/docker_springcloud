@@ -51,6 +51,67 @@ class service():
         stderr = stderr.decode()
         return (stdout, stderr)
 
+    def init(self):
+        # 初始化 本地打包构建git仓库
+        serverNameDict = self.serverDict[self.serverName]
+
+        print("master install:%s" % self.serverName)
+        # print projectDict
+        builddir = serverNameDict["builddir"]
+        if not os.path.exists(builddir):
+            os.makedirs(builddir)
+        try:
+            gitUrl = serverNameDict["giturl"]
+        except:
+            pass
+        if not gitUrl:
+            return False
+
+        if not os.path.exists(builddir):
+            os.mkdir(builddir)
+        os.chdir(builddir)
+        print ("部署路径：", os.getcwd())
+        stdout, stderr = self.execsh("git status .")
+        if stdout:
+            print("out：\n%s" % stdout)
+            print("当前目录：%s,已经存在git仓库请检查!" % builddir)
+            return True
+        if stderr:
+            print("没有git仓库，下一步")
+            print("out：%s" % stderr)
+
+        print("初始化本地仓库")
+        self.ReturnExec("git init")
+
+        print("本地git仓库当前项目认证")
+        config_cmd = "git config --local credential.helper store"
+        self.ReturnExec(config_cmd)
+
+        print
+        "拉取代码"
+        pull_cmd = "git pull %s" % gitUrl
+        self.ReturnExec(pull_cmd)
+
+        print
+        "添加远程仓库地址"
+        add_remote_cmd = "git remote add origin %s" % gitUrl
+        self.ReturnExec(add_remote_cmd)
+
+        print
+        "获取分支"
+        fetch_cmd = "git fetch"
+        self.ReturnExec(fetch_cmd)
+
+        print
+        "关联本地master分支与远程master"
+        upstream_cmd = "git branch --set-upstream-to=origin/master master"
+        self.ReturnExec(upstream_cmd)
+
+        print
+        "获取 最新master分支"
+        pull_m_cmd = "git pull"
+        self.ReturnExec(pull_m_cmd)
+
     def gitupdate(self):
         serverNameDict = self.serverDict[self.serverName]
 
@@ -267,7 +328,8 @@ class service():
             print("stderr >>>%s " % stderr)
             return False
 
-    # 检查 覆盖网络，创建覆盖网络
+    # 检查 覆盖
+    # 网络，创建覆盖网络
     def createNetwork(self,networkName):
         creatNetworkCmd = "docker network create -d overlay %s" % networkName
         checkNetworkCmd = "docker network inspect %s " % networkName
@@ -296,19 +358,18 @@ class service():
         if not self.createNetwork(network):
             print ("create network %s" % network)
         try:
-            xms = serverNameDict["xms"]
             xmx = serverNameDict["xmx"]
         except:
             print("配置文件中为配置容器内存限制参数参数默认512m ")
-            xms = "512m"
             xmx = "512m"
+        # 暂时未用，
+        # if self.env == "test":
+        #     nodelabel = serverNameDict["testlabel"]
+        # if self.env == "dev":
+        #     nodelabel = serverNameDict["devlabel"]
+        # if self.env == "pro":
+        #     nodelabel = serverNameDict["prolabel"]
 
-        if self.env == "test":
-            nodelabel = serverNameDict["testlabel"]
-        if self.env == "dev":
-            nodelabel = serverNameDict["devlabel"]
-        if self.env == "pro":
-            nodelabel = serverNameDict["prolabel"]
         print("%s createServer" % self.serverName)
         createService = "docker service create " \
                         "--replicas {replicas} " \
@@ -316,10 +377,8 @@ class service():
                         "--update-delay 10s " \
                         "--update-failure-action continue " \
                         "--network {network} " \
-                        "--constraint node.role=={label} " \
                         "--container-label aliyun.logs.{serverName}=/root/logger/{serverName}/*.log " \
                         "--name {serverName} " \
-                        "--hostname `hostname` " \
                         "--limit-memory {xmx} " \
                         "-p {hostport}:{dockerport} {imagename} ".format(serverName=self.serverName,
                                                         network=network,
@@ -327,7 +386,6 @@ class service():
                                                         dockerport=dockerport,
                                                         hostport=hostport,
                                                         replicas=replicas,
-                                                        label=nodelabel,
                                                         xmx=xmx
                                                         )
         "--constraint node.labels.type=={label} "
@@ -347,11 +405,9 @@ class service():
         if not self.createNetwork(network):
             print("create network %s" % network)
         try:
-            xms = serverNameDict["xms"]
             xmx = serverNameDict["xmx"]
         except:
             print("配置文件中为配置内存参数参数默认512m ")
-            xms = "512m"
             xmx = "512m"
         updateService = "docker service update " \
                         "--replicas {replicas} " \
@@ -359,8 +415,8 @@ class service():
                         "--image {imagename} {serverName}".format(serverName=self.serverName,
                                                imagename=imagename,
                                                replicas=replicas,
-                                               xmx=xmx
-                                                )
+                                               xmx=xmx)
+
         print("update service:%s" % self.serverName)
         updateStdout, updateStderr = self.execsh(updateService)
         if self.printOutErr(updateStdout, updateStderr):
@@ -369,10 +425,6 @@ class service():
         else:
             print("update service fail:%s" % self.serverName)
             return False
-
-    def startServer(self,env):
-        print("%s startServer on %s" % (self.serverName, env))
-
 
     def reomveServer(self):
         print("%s remove Server" % self.serverName)
@@ -395,10 +447,6 @@ class service():
         else:
             print("rollback service fail :%s " % self.serverName)
             sys.exit()
-
-class projet():
-    def __init__(self, serverName):
-        self.serverName = serverName
 
 class Conf():
     def __init__(self, conf):
@@ -509,14 +557,14 @@ def _init():
                 ser_index = serverlist.index(serName)
                 info = "%s:%s" % (ser_index, serName)
                 writefile(startConf, info)
-                main(serName, branchName, action, envName, version,serverDict)
+                main(serName, branchName, action, envName, version, serverDict)
             cleanfile(startConf)
         else:
             if serverName not in serverDict:
                 print ("没有服务名：%s" % serverName)
                 printServerName(serverDict)
                 sys.exit(1)
-            main(serverName, branchName, action, envName, version,serverDict)
+            main(serverName, branchName, action, envName, version, serverDict)
 
 def printServerName(Dict):
     serverlist = sorted(Dict.keys())
@@ -571,28 +619,51 @@ def printOutErr(stdout, stderr):
         return False
 
 
-def main(serverName, branchName, action, envName,version,serverDict):
+def main(serverName, branchName, action, envName, version, serverDict):
     servicer = service(serverName, branchName, envName, version, serverDict)
-    servicer.createNetwork()
-    # servicer.buildMaven()
-    servicer.buildImage()
-    servicer.pushimage()
-    # print (servicer.checkService())
-    # servicer.logpilot()
-    servicer.reomveServer()
-    servicer.createServer()
-    # servicer.rollBackServer()
-    # servicer.updataServer()
+
+    if action == "build":
+        servicer.buildMaven()
+        servicer.buildImage()
+    elif action == "init":
+        servicer.init()
+    elif action == "push":
+        servicer.pushimage()
+    elif action == "create":
+        servicer.createServer()
+    elif action == "check":
+        servicer.checkService()
+    elif action == "remove":
+        servicer.reomveServer()
+    elif action == "recreate":
+        servicer.reomveServer()
+        servicer.createServer()
+    elif action == "update":
+        servicer.updataServer()
+    elif action == "rollback":
+        servicer.rollBackServer()
+    else:
+        # servicer.createNetwork("")
+        servicer.buildMaven()
+        servicer.buildImage()
+        servicer.pushimage()
+        # print (servicer.checkService())
+        # servicer.logpilot()
+        servicer.reomveServer()
+        servicer.createServer()
+        # servicer.rollBackServer()
+        # servicer.updataServer()
 
 if __name__ == "__main__":
     mvn = "/app/apache-maven-3.5.0/bin/mvn"
     serverConf = "server.conf"
     startConf = "start.conf"
+    # 设置默认上次镜像地址
     repositoryUrl = "10.0.1.133:5000"
     # service.execsh('s','sss')
     # logpilot()
-    main()
-    # _init()
+    # main()
+    _init()
     # logpilot()
 
     # conf = Conf("server.conf").getconf()

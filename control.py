@@ -26,18 +26,6 @@ class service():
         self.version = version
         self.brancheName = brancheName
         self.serverDict = serverDict
-        # self.serverDict = self.getconf()
-        # print(self.serverDict)
-
-        # self.hostport = self.serverDict[self.serverName]["hostport"]
-        # print (self.hostport)
-        # self.dockerport = self.serverDict[self.serverName]["dockerport"]
-        #
-        # self.builddir = self.serverDict[self.serverName]["buiddir"]
-        # self.deploydir = self.serverDict[self.serverName]["deploydir"]
-        # self.jar = self.serverDict[self.serverName]["jar"]
-        # self.label = self.serverDict[self.serverName]["label"]
-        # self.network = self.serverDict[self.serverName]["network"]
 
     def execsh(self, cmd):
         try:
@@ -55,17 +43,13 @@ class service():
     def init(self):
         # 初始化 本地打包构建git仓库
         serverNameDict = self.serverDict[self.serverName]
-
         print("master install:%s" % self.serverName)
-        # print projectDict
         builddir = serverNameDict["builddir"]
         if not os.path.exists(builddir):
             os.makedirs(builddir)
         try:
             gitUrl = serverNameDict["giturl"]
         except:
-            pass
-        if not gitUrl:
             return False
 
         if not os.path.exists(builddir):
@@ -88,28 +72,23 @@ class service():
         config_cmd = "git config --local credential.helper store"
         self.ReturnExec(config_cmd)
 
-        print
-        "拉取代码"
+        print("拉取代码")
         pull_cmd = "git pull %s" % gitUrl
         self.ReturnExec(pull_cmd)
 
-        print
-        "添加远程仓库地址"
+        print("添加远程仓库地址")
         add_remote_cmd = "git remote add origin %s" % gitUrl
         self.ReturnExec(add_remote_cmd)
 
-        print
-        "获取分支"
+        print("获取分支")
         fetch_cmd = "git fetch"
         self.ReturnExec(fetch_cmd)
 
-        print
-        "关联本地master分支与远程master"
+        print("关联本地master分支与远程master")
         upstream_cmd = "git branch --set-upstream-to=origin/master master"
         self.ReturnExec(upstream_cmd)
 
-        print
-        "获取 最新master分支"
+        print("获取 最新master分支")
         pull_m_cmd = "git pull"
         self.ReturnExec(pull_m_cmd)
 
@@ -138,7 +117,6 @@ class service():
     def buildMaven(self):
 
         serverNameDict = self.serverDict[self.serverName]
-        # deployDir = serverNameDict["deploydir"]
         buildDir = serverNameDict["builddir"]
 
         if not self.gitupdate():
@@ -150,7 +128,6 @@ class service():
 
         cmd = "%(mvn)s clean && %(mvn)s install -Dmaven.test.skip=true -P dev" % {"mvn": mvn}
         print("构建服务：%s" % self.serverName)
-        # sys.exit()
         stdout, stderr = self.execsh(cmd)
 
         if "BUILD FAILURE" in stdout:
@@ -229,11 +206,6 @@ class service():
         jar = serverNameDict["jar"]
         dockerport = serverNameDict["dockerport"]
         jarName = jar.split("/")[-1]
-
-        # print("%s building" % self.serverName)
-        # if not self.buildMaven():
-        #     print ("build server:%s False" % self.serverName)
-        #     sys.exit(1)
 
         # 拷贝 构建好的jar 包 到部署目录用于 构建镜像
         self.copyFile()
@@ -329,8 +301,7 @@ class service():
             print("stderr >>>%s " % stderr)
             return False
 
-    # 检查 覆盖
-    # 网络，创建覆盖网络
+    # 检查 覆盖网络，创建覆盖网络
     def createNetwork(self,networkName):
         creatNetworkCmd = "docker network create -d overlay %s" % networkName
         checkNetworkCmd = "docker network inspect %s " % networkName
@@ -353,6 +324,7 @@ class service():
         imagename = "{0}/{1}-{2}:{3}".format(repositoryUrl, self.serverName, self.env, self.version)
         serverNameDict = self.serverDict[self.serverName]
         hostport = serverNameDict["hostport"]
+
         dockerport = serverNameDict["dockerport"]
         replicas = serverNameDict["replicas"]
         network = serverNameDict["network"]
@@ -363,6 +335,20 @@ class service():
         except:
             print("配置文件中为配置容器内存限制参数参数默认512m ")
             xmx = "512m"
+
+        if self.env == "":
+            hostport = serverNameDict["hostport"]
+            dockerport = serverNameDict["dockerport"]
+            network = serverNameDict["network"]
+        elif self.env == "":
+            hostport = serverNameDict["hostport"]
+            dockerport = serverNameDict["dockerport"]
+            network = serverNameDict["network"]
+        elif self.env == "test":
+            pass
+        else:
+            pass
+
         # 暂时未用，
         # if self.env == "test":
         #     nodelabel = serverNameDict["testlabel"]
@@ -502,7 +488,6 @@ def getOptions():
                       dest="action",
                       default="status",
                       help="action -a [checkout,pull,push,master,install]")
-    #
     parser.add_option("-v", "--versionId", action="store",
                       dest="versionId",
                       default=data_now,
@@ -535,9 +520,10 @@ def _init():
     options, args = getOptions()
     action = options.action
     version = options.versionId
-    date_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%m")
-    if not version:
-        version = date_now
+
+    # date_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%m")
+    # if not version:
+    #     version = date_now
 
     serverName = options.serverName
     branchName = options.branchName
@@ -656,7 +642,6 @@ def main(serverName, branchName, action, envName, version, serverDict):
         servicer.buildImage()
         servicer.pushimage()
         # print (servicer.checkService())
-        # servicer.logpilot()
         servicer.reomveServer()
         servicer.createServer()
         # servicer.rollBackServer()
@@ -675,21 +660,3 @@ if __name__ == "__main__":
     # logpilot()
     # main()
     _init()
-
-    # logpilot()
-
-    # conf = Conf("server.conf").getconf()
-    # print (conf)
-    pass
-    # D = service("activity-eureka-1", "es", "server.conf")
-    # print('{name}网址： {site}'.format(name='菜鸟教程', site='www.runoob.com'))
-    # s = D.readconf()
-    # s = D.startServer("ss")
-
-    # print (s)
-    # D.build()
-    # D.tag()
-    # print (D.execsh("docker build -t tt ."))
-    # D.pull()
-    # D.push()
-    # D.createServer()

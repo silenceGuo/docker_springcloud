@@ -14,6 +14,7 @@ import configparser
 # import OptionParser
 from optparse import OptionParser
 import shutil
+import datetime
 #reload(sys)
 # # sys.setdefaultencoding('utf-8')
 # # sys.set
@@ -117,7 +118,7 @@ class service():
 
         buildDir = serverNameDict["builddir"]
         os.chdir(buildDir)
-        pull_m_cmd = "git pull"
+        pull_m_cmd = "sudo git pull"
         stdout, stderr = self.execsh(pull_m_cmd)
         print (stdout)
         print (stderr)
@@ -490,6 +491,8 @@ class Conf():
         return serverNameDict
 
 def getOptions():
+    # 作为镜像tag的以时间戳作为默认值
+    data_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%m")
     parser = OptionParser()
     parser.add_option("-n", "--serverName", action="store",
                       dest="serverName",
@@ -502,7 +505,7 @@ def getOptions():
     #
     parser.add_option("-v", "--versionId", action="store",
                       dest="versionId",
-                      default="latest",
+                      default=data_now,
                       help="-v versionId")
 
     parser.add_option("-b", "--branchName", action="store",
@@ -520,6 +523,7 @@ def getOptions():
     return options, args
 
 def _init():
+
     if not os.path.exists(serverConf):
         print ("serverconf:%s is not exists" % serverConf)
         sys.exit(1)
@@ -531,6 +535,10 @@ def _init():
     options, args = getOptions()
     action = options.action
     version = options.versionId
+    date_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%m")
+    if not version:
+        version = date_now
+
     serverName = options.serverName
     branchName = options.branchName
     envName = options.envName
@@ -642,7 +650,7 @@ def main(serverName, branchName, action, envName, version, serverDict):
         servicer.updataServer()
     elif action == "rollback":
         servicer.rollBackServer()
-    else:
+    elif action =="none":
         # servicer.createNetwork("")
         servicer.buildMaven()
         servicer.buildImage()
@@ -654,16 +662,20 @@ def main(serverName, branchName, action, envName, version, serverDict):
         # servicer.rollBackServer()
         # servicer.updataServer()
 
+    else:
+       print("action check")
+
 if __name__ == "__main__":
     mvn = "/app/apache-maven-3.5.0/bin/mvn"
-    serverConf = "server.conf"
-    startConf = "start.conf"
+    serverConf = "/docker_springcloud/server.conf"
+    startConf = "/docker_springcloud/start.conf"
     # 设置默认上次镜像地址
     repositoryUrl = "10.0.1.133:5000"
     # service.execsh('s','sss')
     # logpilot()
     # main()
     _init()
+
     # logpilot()
 
     # conf = Conf("server.conf").getconf()

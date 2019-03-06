@@ -336,18 +336,18 @@ class service():
             print("配置文件中为配置容器内存限制参数参数默认512m ")
             xmx = "512m"
 
-        if self.env == "":
-            hostport = serverNameDict["hostport"]
-            dockerport = serverNameDict["dockerport"]
-            network = serverNameDict["network"]
-        elif self.env == "":
-            hostport = serverNameDict["hostport"]
-            dockerport = serverNameDict["dockerport"]
-            network = serverNameDict["network"]
-        elif self.env == "test":
-            pass
-        else:
-            pass
+        # if self.env == "":
+        #     hostport = serverNameDict["hostport"]
+        #     dockerport = serverNameDict["dockerport"]
+        #     network = serverNameDict["network"]
+        # elif self.env == "":
+        #     hostport = serverNameDict["hostport"]
+        #     dockerport = serverNameDict["dockerport"]
+        #     network = serverNameDict["network"]
+        # elif self.env == "test":
+        #     pass
+        # else:
+        #     pass
 
         # 暂时未用，
         # if self.env == "test":
@@ -373,8 +373,7 @@ class service():
                                                         dockerport=dockerport,
                                                         hostport=hostport,
                                                         replicas=replicas,
-                                                        xmx=xmx
-                                                        )
+                                                        xmx=xmx)
         "--constraint node.labels.type=={label} "
         stdout, stderr = self.execsh(createService)
         print (stdout)
@@ -478,7 +477,7 @@ class Conf():
 
 def getOptions():
     # 作为镜像tag的以时间戳作为默认值
-    data_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%m")
+    date_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")
     parser = OptionParser()
     parser.add_option("-n", "--serverName", action="store",
                       dest="serverName",
@@ -490,15 +489,15 @@ def getOptions():
                       help="action -a [checkout,pull,push,master,install]")
     parser.add_option("-v", "--versionId", action="store",
                       dest="versionId",
-                      default=data_now,
-                      help="-v versionId")
+                      default=date_now,
+                      help="-v versionId defalut datetime [%Y-%m-%d-%H-%M:2019-03-06-16-05] ")
 
     parser.add_option("-b", "--branchName", action="store",
                       dest="branchName",
                       default="master",
                       help="-b branchName")
 
-    # jar 服务启动区分环境 读取的配置不一样
+    # jar 服务启动区分环境,作为参数传入镜像中作为启动参数
     parser.add_option("-e", "--envName", action="store",
                       dest="envName",
                       default="test",
@@ -520,11 +519,6 @@ def _init():
     options, args = getOptions()
     action = options.action
     version = options.versionId
-
-    # date_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%m")
-    # if not version:
-    #     version = date_now
-
     serverName = options.serverName
     branchName = options.branchName
     envName = options.envName
@@ -612,10 +606,8 @@ def printOutErr(stdout, stderr):
         print("stderr >>>%s " % stderr)
         return False
 
-
 def main(serverName, branchName, action, envName, version, serverDict):
     servicer = service(serverName, branchName, envName, version, serverDict)
-
     if action == "build":
         servicer.buildMaven()
         servicer.buildImage()
@@ -633,19 +625,24 @@ def main(serverName, branchName, action, envName, version, serverDict):
         servicer.reomveServer()
         servicer.createServer()
     elif action == "update":
+        servicer.buildMaven()
+        servicer.buildImage()
+        servicer.pushimage()
         servicer.updataServer()
     elif action == "rollback":
         servicer.rollBackServer()
-    elif action =="none":
+    elif action == "none":
         # servicer.createNetwork("")
         servicer.buildMaven()
         servicer.buildImage()
         servicer.pushimage()
         # print (servicer.checkService())
-        servicer.reomveServer()
-        servicer.createServer()
+
+        # servicer.reomveServer()
+        # servicer.createServer()
+
         # servicer.rollBackServer()
-        # servicer.updataServer()
+        servicer.updataServer()
 
     else:
        print("action check")
@@ -654,6 +651,7 @@ if __name__ == "__main__":
     mvn = "/app/apache-maven-3.5.0/bin/mvn"
     serverConf = "/docker_springcloud/server.conf"
     startConf = "/docker_springcloud/start.conf"
+
     # 设置默认上次镜像地址
     repositoryUrl = "10.0.1.133:5000"
     # service.execsh('s','sss')

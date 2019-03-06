@@ -5,6 +5,7 @@
 #!@File   : logrun.py
 """
 使用阿里云开源日志采集工具，采集每个节点的所以容器日志发送到redis
+结合ansible host文件在需要采集的node 服务器节点执行启动采集容器
 """
 import os
 from optparse import OptionParser

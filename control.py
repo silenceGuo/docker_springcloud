@@ -611,6 +611,7 @@ def main(serverName, branchName, action, envName, version, serverDict):
     if action == "build":
         servicer.buildMaven()
         servicer.buildImage()
+        servicer.pushimage()
     elif action == "init":
         servicer.init()
     elif action == "push":

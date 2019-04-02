@@ -1,6 +1,6 @@
 # Dockfile for tomcat7:base
 FROM jdk
-MAINTAINER GuoZQ
+MAINTAINER demon@kilimall.com
 RUN mkdir -pv /data/tomcat8
 COPY tomcat-8 /data/tomcat8
 RUN chmod +x /data/tomcat8/tomcat/bin/*

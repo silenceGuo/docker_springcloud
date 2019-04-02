@@ -1,5 +1,5 @@
 FROM jeanblanchard/alpine-glibc
-MAINTAINER GuoZQ
+MAINTAINER demon@kilimall.com
 RUN mkdir -pv /data/jdk1.8
 COPY jdk1.8 /data/jdk1.8
 ENV LANG en_US.UTF-8

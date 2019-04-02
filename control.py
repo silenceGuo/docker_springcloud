@@ -19,7 +19,7 @@ import datetime
 # # sys.setdefaultencoding('utf-8')
 # # sys.set
 
-class service():
+class service( ):
     def __init__(self, serverName, brancheName, env, version, serverDict):
         self.serverName = serverName
         self.env = env

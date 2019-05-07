@@ -49,9 +49,10 @@ def execsh( cmd):
     return (stdout, stderr)
 
 def ReturnExec(cmd):
+    print(80 * "#")
     stdout, stderr = execsh(cmd)
+
     if stdout:
-        print (80 * "#")
         print ("out:%s " % stdout)
         if "fatal"in stdout:
             print ("出现错误，请检查" )
@@ -62,7 +63,6 @@ def ReturnExec(cmd):
             return False
 
     if stderr:
-        print(80 * "#")
         print("err:%s" % stderr)
         if "fatal"in stderr:
             print ("出现错误，请检查" )
@@ -70,6 +70,7 @@ def ReturnExec(cmd):
         if "CONFLICT" in stderr:
             print("出现错误，请检查")
             return False
+    # print(80 * "#")
     return True
 
 def merge(Dir,branch, mbranch):
@@ -100,9 +101,9 @@ def merge(Dir,branch, mbranch):
         ReturnExec(reset_cmd)
         sys.exit(1)
 
-    print ('推送到远端分支%s'% mbranch)
-    push_cmd = "sudo git push origin %s" % mbranch
-    ReturnExec(push_cmd)
+    # print ('推送到远端分支%s'% mbranch)
+    # push_cmd = "sudo git push origin %s" % mbranch
+    # ReturnExec(push_cmd)
 
 def checkout(Dir,branch):
     print ("切换工作目录%s"% Dir)
@@ -114,6 +115,13 @@ def checkout(Dir,branch):
 
     pull_cmd = "sudo git pull"
     ReturnExec(pull_cmd)
+
+def push(Dir,mbranch):
+    print ("切换工作目录%s"% Dir)
+    os.chdir(Dir)
+    print('推送到远端分支%s' % mbranch)
+    push_cmd = "sudo git push origin %s" % mbranch
+    ReturnExec(push_cmd)
 
 def createBranch(Dir,branch):
     print("切换工作目录%s" % Dir)
@@ -168,6 +176,10 @@ def main():
             print("-b branch to create branch checkout")
             sys.exit(1)
         createBranch(Dir, branch)
+    elif action == "push":
+        if not mbranch:
+            print("-m mbranch to push branch ")
+        push(Dir, mbranch)
     else:
         print ("-a aciton merge, checkout, create")
         sys.exit()

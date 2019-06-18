@@ -10,7 +10,7 @@ import shutil
 import datetime
 import sys
 from subprocess import PIPE, Popen
-"""批量初始化项目的git仓库"""
+"""批量初始化项目的git仓库，会删除git仓库目录重新初始化"""
 
 def getOptions():
     # date_now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")
@@ -35,7 +35,7 @@ def getOptions():
     options, args = parser.parse_args()
     return options, args
 
-def execsh( cmd):
+def execsh(cmd):
     try:
         print("exec ssh command: %s" % cmd)
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
@@ -44,8 +44,8 @@ def execsh( cmd):
         sys.exit(1)
     stdout, stderr = p.communicate()
     # 需要转换byte to str
-    stdout = stdout.decode()
-    stderr = stderr.decode()
+    #stdout = stdout.decode()
+    #stderr = stderr.decode()
     return (stdout, stderr)
 
 def ReturnExec(cmd):
@@ -132,8 +132,6 @@ def main():
         print ('-u git url')
         return False
     init(Dir, gitUrl, gitType, force)
-
-
 
 
 if __name__ == "__main__":
